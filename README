@@ -1,0 +1,21 @@
+
+This repo contains a few gstreamer test snippets:
+
+* appsink_v4l2.c: appsink the incoming v4l2 frames
+* appsink_localsource.c: play a file to appsink and get info about the frames
+   * usage: appsink_localsource.o <file> <output pixel format> <use videoconvert?: choose yes/no>
+   * note that when not using videoconvert, the pixel format needs to be the pixel format of the original file
+
+In order to build locally:
+
+gcc <source_file>.c -o <output>.o $(pkg-config --cflags --libs gstreamer-1.0) -lgstapp-1.0 -lgstvideo-1.0
+
+
+The Makefile is used for buildroot building.
+
+In order to build for buildroot, do the following:
+ * add the following line to <build_dir>/sources/baseunit_build/baseunit_br_external/Config.in:
+    source "$BR2_EXTERNAL/package/baseunit_package/gsttest/Config.in"
+ * add the directory 'gsttest' to <build_dir>/sources/baseunit_build/baseunit_br_external/package/baseunit_package
+ * add the following files to that directory: Config.in, gsttest.mk
+ * check in gsttest.mk if the source directory is still correct
