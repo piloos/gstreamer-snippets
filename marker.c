@@ -1,6 +1,7 @@
 #include <gst/gst.h>
 #include <gst/app/gstappsink.h>
 #include <gst/video/gstvideoutils.h>
+#include <gst/audio/audio-info.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -91,13 +92,18 @@ GstFlowReturn new_audio_sample_callback(GstAppSink *appsink, gpointer user_data)
     gboolean hasSound;
     gint32 soundStart;
     gint32 absoluteSoundStart;
+    guint32 frames_per_ms;
+    GstAudioInfo audioInfo;
 
     sample = gst_app_sink_pull_sample(appsink);
 
-    //caps = gst_sample_get_caps(sample);
+    caps = gst_sample_get_caps(sample);
     //caps_string = gst_caps_to_string(caps);
     //printf("  Caps: %s\n", caps_string);
     //g_free(caps_string);
+    gst_audio_info_from_caps(&audioInfo, caps);
+    frames_per_ms = audioInfo.bpf * audioInfo.rate / 1000;
+    //printf("%d\n", frames_per_ms);
 
     buffer = gst_sample_get_buffer(sample);
 
@@ -109,7 +115,7 @@ GstFlowReturn new_audio_sample_callback(GstAppSink *appsink, gpointer user_data)
     //printf("  Size: %ld\n", map.size);
     content = bytesToHexString(map.data, map.size * 2);
     //printf("  Content:\n%s\n", content);
-    soundStart = checkSound(content, 192);
+    soundStart = checkSound(content, frames_per_ms);
     if(soundStart < 0) {
         hasSound = FALSE;
     }
