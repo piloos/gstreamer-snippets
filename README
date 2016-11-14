@@ -19,3 +19,8 @@ In order to build for buildroot, do the following:
  * add the directory 'gsttest' to <build_dir>/sources/baseunit_build/baseunit_br_external/package/baseunit_package
  * add the following files to that directory: Config.in, gsttest.mk
  * check in gsttest.mk if the source directory is still correct
+
+
+marker.c: detects audio and video pulses in a test file
+    build with:
+    gcc marker.c helpers/hexString.c -o marker.o $(pkg-config --cflags --libs gstreamer-1.0) -lgstapp-1.0 -lgstvideo-1.0 -lgstaudio-1.0
