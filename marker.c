@@ -51,15 +51,17 @@ GstFlowReturn new_video_sample_callback(GstAppSink *appsink, gpointer user_data)
         return GST_FLOW_OK;
     }
 
-    content = bytesToHexString(map.data, 10);
+    //content = bytesToHexString(map.data, 10);
     //printf("  Content:\n%s\n", content);
-    isWhite = (strcmp(content, "0000000000") == 0) ? FALSE : TRUE;
+    //free(content);
+
+    //check if 3 bytes are zero, this must mean RGB data is white
+    isWhite = ( (map.data[0] + map.data[1] + map.data[2]) == 0 ) ? FALSE : TRUE;
     if(isWhite == TRUE) {
         printf("AV7 video ");
         printf("%ld ", GST_TIME_AS_MSECONDS(buffer->pts));
         printf("white\n");
     }
-    free(content);
 
     gst_buffer_unmap(buffer, &map);
 
@@ -69,17 +71,17 @@ GstFlowReturn new_video_sample_callback(GstAppSink *appsink, gpointer user_data)
     return GST_FLOW_OK;
 }
 
-gint32 checkSound(const gchar* content, gint32 samples_per_ms)
+// check every millisecond for noise (ie. non-null data)
+gint32 checkSound(guint8 *data, gsize length, gint32 samples_per_ms)
 {
-    guint32 length = strlen(content);
     guint32 i;
-    //printf("  length %d\n", length);
-    for(i = 0; i < length; i += samples_per_ms*2) {
-        if( strncmp(content+i, "00", 2) !=0 )
-            return i/samples_per_ms/2;
+    for(i = 0; i < length; i += samples_per_ms) {
+        if( data[i] != 0 )
+            return i/samples_per_ms;
     }
     return -1;
 }
+
 
 GstFlowReturn new_audio_sample_callback(GstAppSink *appsink, gpointer user_data)
 {
@@ -113,9 +115,10 @@ GstFlowReturn new_audio_sample_callback(GstAppSink *appsink, gpointer user_data)
     }
 
     //printf("  Size: %ld\n", map.size);
-    content = bytesToHexString(map.data, map.size * 2);
+    //content = bytesToHexString(map.data, map.size * 2);
     //printf("  Content:\n%s\n", content);
-    soundStart = checkSound(content, frames_per_ms);
+    //free(content);
+    soundStart = checkSound(map.data, map.size, frames_per_ms);
     if(soundStart < 0) {
         hasSound = FALSE;
     }
@@ -129,7 +132,6 @@ GstFlowReturn new_audio_sample_callback(GstAppSink *appsink, gpointer user_data)
         printf("%d ", absoluteSoundStart);
         printf("noise\n");
     }
-    free(content);
 
     gst_buffer_unmap(buffer, &map);
 
