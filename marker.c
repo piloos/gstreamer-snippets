@@ -55,9 +55,9 @@ GstFlowReturn new_video_sample_callback(GstAppSink *appsink, gpointer user_data)
     //printf("  Content:\n%s\n", content);
     isWhite = (strcmp(content, "0000000000") == 0) ? FALSE : TRUE;
     if(isWhite == TRUE) {
-        printf("video ");
+        printf("AV7 video ");
         printf("%ld ", GST_TIME_AS_MSECONDS(buffer->pts));
-        printf("White\n");
+        printf("white\n");
     }
     free(content);
 
@@ -124,10 +124,10 @@ GstFlowReturn new_audio_sample_callback(GstAppSink *appsink, gpointer user_data)
         hasSound = TRUE;
     }
     if(hasSound == TRUE) {
-        printf("audio ");
+        printf("AV7 audio ");
         printf("%ld ", GST_TIME_AS_MSECONDS(buffer->pts));
         printf("%d ", absoluteSoundStart);
-        printf("NOISE!!!\n");
+        printf("noise\n");
     }
     free(content);
 
