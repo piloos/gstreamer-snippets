@@ -150,7 +150,7 @@ void appsink_pipeline(const char* filelocation) {
     GError *error = NULL;
     GstAppSinkCallbacks my_callbacks;
 
-    sprintf(pipeline_string, "filesrc location=%s ! qtdemux name=m m.video_0 ! queue ! avdec_h264 ! videoconvert ! appsink name=video_appsink caps=\"video/x-raw,format=RGB\" m.audio_0 ! queue ! aacparse ! faad ! appsink name=audio_appsink caps=\"audio/x-raw\"", filelocation);
+    sprintf(pipeline_string, "filesrc location=%s ! qtdemux name=m m.video_0 ! queue ! avdec_h264 ! videoconvert ! appsink name=video_appsink caps=\"video/x-raw,format=RGB\" sync=false m.audio_0 ! queue ! aacparse ! faad ! appsink name=audio_appsink caps=\"audio/x-raw\" sync=false", filelocation);
 
     printf("\n\nGST pipeline: %s\n\n", pipeline_string);
 
