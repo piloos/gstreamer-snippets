@@ -55,8 +55,9 @@ GstFlowReturn new_video_sample_callback(GstAppSink *appsink, gpointer user_data)
     //printf("  Content:\n%s\n", content);
     //free(content);
 
-    //check if 3 bytes are zero, this must mean RGB data is white
-    isWhite = ( (map.data[0] + map.data[1] + map.data[2]) == 0 ) ? FALSE : TRUE;
+    //check if 3 bytes are different from zero, this would mean some different color than
+    //black.  A different color from black is enough to see it as white.
+    isWhite = ( map.data[0] != 0 ||  map.data[1] != 0 && map.data[2] != 0 ) ? TRUE : FALSE;
     if(isWhite == TRUE) {
         printf("AV7 video ");
         printf("%ld ", GST_TIME_AS_MSECONDS(buffer->pts));
