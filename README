@@ -24,3 +24,7 @@ In order to build for buildroot, do the following:
 marker.c: detects audio and video pulses in a test file
     build with:
     gcc marker.c helpers/hexString.c -o marker.o $(pkg-config --cflags --libs gstreamer-1.0) -lgstapp-1.0 -lgstvideo-1.0 -lgstaudio-1.0
+
+
+appsink_to_appsrc.c: Sinks video from a mp4 file to an appsink.  This is pushed to an appsrc and rendered.
+                     Can be used as a starting point to explore the appsink/appsrc behavior.
