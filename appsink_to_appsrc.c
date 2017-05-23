@@ -32,7 +32,7 @@ GstFlowReturn new_sample_callback(GstAppSink *appsink, gpointer user_data)
     GstFlowReturn ret;
     GstElement *appsrc;
 
-    //printf("\nNew frame!\n");
+    printf("\nNew frame!\n");
     sample = gst_app_sink_pull_sample(appsink);
     caps = gst_sample_get_caps(sample);
     caps_string = gst_caps_to_string(caps);
@@ -43,11 +43,11 @@ GstFlowReturn new_sample_callback(GstAppSink *appsink, gpointer user_data)
 
     /* make a copy (no deep copy if not necessary) */
     app_buffer = gst_buffer_copy (buffer);
-    //printf("Buffer size %d\n", gst_buffer_get_size(buffer));
-    
+    printf("Buffer size %d\n", gst_buffer_get_size(buffer));
+
     /* we don't need the appsink sample anymore */
     gst_sample_unref (sample);
-    
+
     /* push new buffer to appsrc */
     appsrc = (GstElement*) user_data;
     gst_app_src_set_caps ( GST_APP_SRC(appsrc), caps);
@@ -73,24 +73,47 @@ void eos_callback(GstAppSink *appsink, gpointer user_data)
     printf("\nEOS reached!!\n");
 }
 
-static GstPadProbeReturn inspect_video_buffer(GstPad *pad, GstPadProbeInfo *info, gpointer user_data) 
+static GstPadProbeReturn inspect_video_buffer(GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
 {
     GstBuffer *buffer = GST_PAD_PROBE_INFO_BUFFER (info);
 
-    //printf("\nBuffer passing!\n");
-    //printf("Buffer size %d\n", gst_buffer_get_size(buffer));
+    printf("Buffer passing %s, size %d, pts %d\n", (unsigned char*) user_data, gst_buffer_get_size(buffer), GST_TIME_AS_MSECONDS(GST_BUFFER_PTS(buffer)));
     return GST_PAD_PROBE_OK;
+}
+
+gboolean print_pipeline_callback(gpointer data)
+{
+    GstElement *pipeline = (GstElement*) data;
+    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline1");
+    return FALSE; //returning FALSE makes sure that we are only called once
+}
+
+gboolean print_pipeline2_callback(gpointer data)
+{
+    GstElement *pipeline = (GstElement*) data;
+    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline2");
+    return FALSE; //returning FALSE makes sure that we are only called once
+}
+
+gboolean start_pipeline_callback(gpointer data)
+{
+    GstElement *pipeline = (GstElement*) data;
+    gst_element_set_state(pipeline, GST_STATE_PLAYING);
+    return FALSE;
 }
 
 void appsink_pipeline(const char* filelocation) {
     char pipeline_string[500], pipeline2_string[500];
-    GstElement *pipeline, *appsink, *pipeline2, *appsrc, *tocheck;
+    GstElement *pipeline, *appsink, *pipeline2, *appsrc, *el;
     GError *error = NULL;
     GstAppSinkCallbacks my_callbacks;
     GstPad *pad;
+    GMainLoop *loop;
 
-    sprintf(pipeline_string, "filesrc location=%s ! qtdemux name=demux demux.video_0 ! queue ! appsink name=mysink sync=true", filelocation);
-    sprintf(pipeline2_string, "appsrc name=mysource ! queue ! avdec_h264 ! videoconvert ! ximagesink name=tocheck");
+    loop = g_main_loop_new ( NULL , FALSE );
+
+    sprintf(pipeline_string, "filesrc location=%s ! qtdemux name=demux demux.video_0 ! queue name=myqueue ! appsink name=mysink sync=true", filelocation);
+    sprintf(pipeline2_string, "appsrc name=mysource ! queue ! avdec_h264 name=mydec ! videoconvert ! ximagesink");
 
     printf("\n\nGST pipeline 1: %s\n\n", pipeline_string);
     printf("\n\nGST pipeline 2: %s\n\n", pipeline2_string);
@@ -106,10 +129,11 @@ void appsink_pipeline(const char* filelocation) {
 
     appsrc = gst_bin_get_by_name(GST_BIN(pipeline2), "mysource");
 
-    tocheck = gst_bin_get_by_name(GST_BIN(pipeline2), "tocheck");
-    pad = gst_element_get_static_pad(tocheck, "sink");
-    gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback) inspect_video_buffer, NULL, NULL);
+    el = gst_bin_get_by_name(GST_BIN(pipeline2), "mydec");
+    pad = gst_element_get_static_pad(el, "sink");
+    gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback) inspect_video_buffer, "incoming on decoder", NULL);
     gst_object_unref(pad);
+    gst_object_unref(el);
 
     //configuring pipeline 1
     pipeline = gst_parse_launch(pipeline_string, &error);
@@ -119,6 +143,15 @@ void appsink_pipeline(const char* filelocation) {
         g_clear_error(&error);
         exit(-1);
     }
+
+    el = gst_bin_get_by_name(GST_BIN(pipeline), "mysink");
+    pad = gst_element_get_static_pad(el, "sink");
+    gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback) inspect_video_buffer, "incoming on appsink", NULL);
+    gst_object_unref(pad);
+    //pad = gst_element_get_static_pad(el, "src");
+    //gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback) inspect_video_buffer, "outgoing", NULL);
+    //gst_object_unref(pad);
+    gst_object_unref(el);
 
     appsink = gst_bin_get_by_name(GST_BIN(pipeline), "mysink");
 
@@ -130,10 +163,14 @@ void appsink_pipeline(const char* filelocation) {
 
     //start both pipelines
     gst_element_set_state(pipeline2, GST_STATE_PLAYING);
-    gst_element_set_state(pipeline, GST_STATE_PLAYING);
+    gst_element_set_state(pipeline, GST_STATE_PAUSED);
 
-    printf("Press ENTER to stop the pipeline...\n");
-    getchar();
+    g_timeout_add (1000 , start_pipeline_callback, (gpointer) pipeline);
+
+    g_timeout_add (2000 , print_pipeline_callback , (gpointer) pipeline);
+    g_timeout_add (2000 , print_pipeline2_callback , (gpointer) pipeline2);
+
+    g_main_loop_run (loop);
 
     gst_element_set_state(pipeline, GST_STATE_NULL);
     gst_element_set_state(pipeline2, GST_STATE_NULL);
@@ -141,4 +178,6 @@ void appsink_pipeline(const char* filelocation) {
     gst_object_unref(appsrc);
     gst_object_unref(pipeline);
     gst_object_unref(pipeline2);
+
+    g_main_loop_unref(loop);
 }
