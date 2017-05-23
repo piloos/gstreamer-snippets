@@ -31,11 +31,21 @@ static GstPadProbeReturn inspect_video_buffer(GstPad *pad, GstPadProbeInfo *info
     return GST_PAD_PROBE_OK;
 }
 
+gboolean print_pipeline_callback(gpointer data)
+{
+    GstElement *pipeline = (GstElement*) data;
+    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "basic_pipeline");
+    return FALSE; //returning FALSE makes sure that we are only called once
+}
+
 void pipeline(const char* filelocation) {
     char pipeline_string[500];
     GstElement *pipeline, *el;
     GError *error = NULL;
     GstPad *pad;
+    GMainLoop *loop;
+
+    loop = g_main_loop_new ( NULL , FALSE );
 
     sprintf(pipeline_string, "filesrc location=%s ! qtdemux name=demux demux.video_0 ! queue name=myqueue ! avdec_h264 name=mydec ! videoconvert ! ximagesink name=mysink", filelocation);
 
@@ -62,9 +72,12 @@ void pipeline(const char* filelocation) {
     //start pipeline
     gst_element_set_state(pipeline, GST_STATE_PLAYING);
 
-    printf("Press ENTER to stop the pipeline...\n");
-    getchar();
+    g_timeout_add (1000 , print_pipeline_callback , (gpointer) pipeline);
+
+    g_main_loop_run (loop);
 
     gst_element_set_state(pipeline, GST_STATE_NULL);
     gst_object_unref(pipeline);
+
+    g_main_loop_unref(loop);
 }
