@@ -81,21 +81,21 @@ static GstPadProbeReturn inspect_video_buffer(GstPad *pad, GstPadProbeInfo *info
     return GST_PAD_PROBE_OK;
 }
 
-gboolean print_pipeline_callback(gpointer data)
+static gboolean print_pipeline_callback(gpointer data)
 {
     GstElement *pipeline = (GstElement*) data;
     GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline1");
     return FALSE; //returning FALSE makes sure that we are only called once
 }
 
-gboolean print_pipeline2_callback(gpointer data)
+static gboolean print_pipeline2_callback(gpointer data)
 {
     GstElement *pipeline = (GstElement*) data;
     GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline2");
     return FALSE; //returning FALSE makes sure that we are only called once
 }
 
-gboolean start_pipeline_callback(gpointer data)
+static gboolean start_pipeline_callback(gpointer data)
 {
     GstElement *pipeline = (GstElement*) data;
     gst_element_set_state(pipeline, GST_STATE_PLAYING);
