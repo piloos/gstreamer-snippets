@@ -7,6 +7,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+
+GTimer *timer;
+
 void appsink_pipeline(const char* filelocation);
 
 int main(int argc, char *argv[]) {
@@ -40,6 +43,7 @@ GstFlowReturn new_sample_callback(GstAppSink *appsink, gpointer user_data)
     GstBuffer *buffer, *app_buffer;
     GstFlowReturn ret;
     GstElement *appsrc;
+    gdouble pushtime;
 
     sample = gst_app_sink_pull_sample(appsink);
     caps = gst_sample_get_caps(sample);
@@ -60,10 +64,13 @@ GstFlowReturn new_sample_callback(GstAppSink *appsink, gpointer user_data)
     /* push new buffer to appsrc */
     appsrc = (GstElement*) user_data;
     gst_app_src_set_caps ( GST_APP_SRC(appsrc), caps);
+    g_timer_start(timer);
     ret = gst_app_src_push_buffer ( GST_APP_SRC(appsrc) , app_buffer);
+    pushtime = g_timer_elapsed(timer, NULL);
     if (ret != GST_FLOW_OK) {
         printf("Appsink could not push buffer to appsrc, error %d\n", ret);
     }
+    printf("Time to push: %d us\n", (guint) (pushtime * 1000000.0));
 
     //important to return some kind of OK message, otherwise the pipe will block
     return GST_FLOW_OK;
@@ -116,6 +123,11 @@ static gboolean print_appsrc_level(gpointer data)
     return TRUE;
 }
 
+static void enough_data_cb(GstElement *el, gpointer data)
+{
+    printf("Appsrc is signaling that it has enough data!\n");
+}
+
 void appsink_pipeline(const char* filelocation) {
     char pipeline_string[500], pipeline2_string[500];
     GstElement *pipeline, *appsink, *pipeline2, *appsrc, *el;
@@ -126,8 +138,29 @@ void appsink_pipeline(const char* filelocation) {
 
     loop = g_main_loop_new ( NULL , FALSE );
 
+    timer = g_timer_new();
+
+    /*
+     * +---------+       +-------+       +-------+       +------------+
+     * |         |       |       | video |       |       |            |    sync=false: appsink will push
+     * | filesrc +-------> demux +-------> queue +-------> appsink    |    buffers into appsrc as soon
+     * |         |       |       |       |       |       | sync=false |    as it receives the buffers
+     * +---------+       +-------+       +-------+       +------------+
+     *
+     *
+     * +--------+       +-------+       +---------+       +-----------+       +------------+
+     * |        |       |       |       |         |       |           |       |            |
+     * | appsrc +-------> queue +-------> decoder +-------> converter +-------> ximagesink |
+     * |        |       |       |       |         |       |           |       |            |
+     * +--------+       +-------+       +---------+       +-----------+       +------------+
+     *
+     * Appsrc is set non-blocking.  This holds the danger of filling its internal queue dangerously large.
+     * The max-bytes property (set to 0) is only used to emit the signal 'enough-data'. We don't need that signal.
+     * So we might as well disable it.
+     */
+
     sprintf(pipeline_string, "filesrc location=%s ! qtdemux name=demux demux.video_0 ! queue ! appsink name=mysink sync=false", filelocation);
-    sprintf(pipeline2_string, "appsrc name=mysource block=false ! queue ! avdec_h264 name=mydec ! videoconvert ! ximagesink");
+    sprintf(pipeline2_string, "appsrc name=mysource block=false max-bytes=0 ! queue ! avdec_h264 name=mydec ! videoconvert ! ximagesink");
 
     printf("\nGST pipeline 1: %s\n", pipeline_string);
     printf("\nGST pipeline 2: %s\n\n", pipeline2_string);
@@ -142,6 +175,8 @@ void appsink_pipeline(const char* filelocation) {
     }
 
     appsrc = gst_bin_get_by_name(GST_BIN(pipeline2), "mysource");
+
+    g_signal_connect(G_OBJECT(appsrc), "enough-data", G_CALLBACK(enough_data_cb), NULL);
 
     //configuring pipeline 1
     pipeline = gst_parse_launch(pipeline_string, &error);
