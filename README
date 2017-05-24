@@ -2,13 +2,32 @@
 This repo contains a few gstreamer test snippets:
 
 * appsink_v4l2.c: appsink the incoming v4l2 frames
+
 * appsink_localsource.c: play a file to appsink and get info about the frames
    * usage: appsink_localsource.o <file> <output pixel format> <use videoconvert?: choose yes/no>
    * note that when not using videoconvert, the pixel format needs to be the pixel format of the original file
 
+* marker.c: detects audio and video pulses in a test file
+
+* appsink_to_appsrc.c: Sinks video from a mp4 file to an appsink.  This is pushed to an appsrc and rendered.
+   * Can be used as a starting point to explore the appsink/appsrc behavior.
+
+* basic_pipeline.c: Basic pipeline which can be used to get info about buffer flow in a typical decoding pipeline.
+
+
+
 In order to build locally:
 
-gcc <source_file>.c -o <output>.o $(pkg-config --cflags --libs gstreamer-1.0) -lgstapp-1.0 -lgstvideo-1.0
+Against the system version of gstreamer:
+   gcc <source_file>.c -o <output>.o $(pkg-config --cflags --libs gstreamer-1.0) -lgstapp-1.0 -lgstvideo-1.0
+
+Against a local version of gstreamer:
+   gcc <source_file>.c -o <output>.o -pthread -I/home/lode/bin/gst1.6.3/include/gstreamer-1.0 -I/home/lode/bin/gst1.6.3/lib/gstreamer-1.0/include
+   -I/usr/include/glib-2.0 -I/usr/lib/x86_64-linux-gnu/glib-2.0/include -L/home/lode/bin/gst1.6.3/lib -lgstreamer-1.0 -lgobject-2.0 -lglib-2.0 -lgstapp-1.0
+
+NOTE: when running your application, make sure LD_LIBRARY_PATH is set correctly:
+LD_LIBRARY_PATH=/home/lode/bin/gst1.6.3/lib ./appsink_to_appsrc.o ../media/Madagascar.mp4
+
 
 
 The Makefile is used for buildroot building.
@@ -19,14 +38,3 @@ In order to build for buildroot, do the following:
  * add the directory 'gsttest' to <build_dir>/sources/baseunit_build/baseunit_br_external/package/baseunit_package
  * add the following files to that directory: Config.in, gsttest.mk
  * check in gsttest.mk if the source directory is still correct
-
-
-marker.c: detects audio and video pulses in a test file
-    build with:
-    gcc marker.c helpers/hexString.c -o marker.o $(pkg-config --cflags --libs gstreamer-1.0) -lgstapp-1.0 -lgstvideo-1.0 -lgstaudio-1.0
-
-
-appsink_to_appsrc.c: Sinks video from a mp4 file to an appsink.  This is pushed to an appsrc and rendered.
-                     Can be used as a starting point to explore the appsink/appsrc behavior.
-
-basic_pipeline.c: Basic pipeline which can be used to get info about buffer flow in a typical decoding pipeline.
