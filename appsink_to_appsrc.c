@@ -61,6 +61,9 @@ GstFlowReturn new_sample_callback(GstAppSink *appsink, gpointer user_data)
     appsrc = (GstElement*) user_data;
     gst_app_src_set_caps ( GST_APP_SRC(appsrc), caps);
     ret = gst_app_src_push_buffer ( GST_APP_SRC(appsrc) , app_buffer);
+    if (ret != GST_FLOW_OK) {
+        printf("Appsink could not push buffer to appsrc, error %d\n", ret);
+    }
 
     //important to return some kind of OK message, otherwise the pipe will block
     return GST_FLOW_OK;
@@ -104,6 +107,15 @@ static gboolean print_pipeline2_callback(gpointer data)
     return FALSE; //returning FALSE makes sure that we are only called once
 }
 
+static gboolean print_appsrc_level(gpointer data)
+{
+    guint64 bytes;
+    GstElement *appsrc = (GstElement*) data;
+    bytes= gst_app_src_get_current_level_bytes (GST_APP_SRC(appsrc));
+    printf("Appsrc is containing %d bytes\n", bytes);
+    return TRUE;
+}
+
 void appsink_pipeline(const char* filelocation) {
     char pipeline_string[500], pipeline2_string[500];
     GstElement *pipeline, *appsink, *pipeline2, *appsrc, *el;
@@ -114,8 +126,8 @@ void appsink_pipeline(const char* filelocation) {
 
     loop = g_main_loop_new ( NULL , FALSE );
 
-    sprintf(pipeline_string, "filesrc location=%s ! qtdemux name=demux demux.video_0 ! queue ! appsink name=mysink sync=true", filelocation);
-    sprintf(pipeline2_string, "appsrc name=mysource ! queue ! avdec_h264 name=mydec ! videoconvert ! ximagesink");
+    sprintf(pipeline_string, "filesrc location=%s ! qtdemux name=demux demux.video_0 ! queue ! appsink name=mysink sync=false", filelocation);
+    sprintf(pipeline2_string, "appsrc name=mysource block=false ! queue ! avdec_h264 name=mydec ! videoconvert ! ximagesink");
 
     printf("\nGST pipeline 1: %s\n", pipeline_string);
     printf("\nGST pipeline 2: %s\n\n", pipeline2_string);
@@ -163,6 +175,8 @@ void appsink_pipeline(const char* filelocation) {
 
     g_timeout_add (1000 , print_pipeline_callback , (gpointer) pipeline);
     g_timeout_add (1000 , print_pipeline2_callback , (gpointer) pipeline2);
+
+    g_timeout_add (500, print_appsrc_level, (gpointer) appsrc);
 
     g_main_loop_run (loop);
 
