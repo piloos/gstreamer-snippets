@@ -10,9 +10,18 @@
 void appsink_pipeline(const char* filelocation);
 
 int main(int argc, char *argv[]) {
-    printf("Kicking off...\n");
+    guint major, minor, micro, nano;
+
+    printf("Kicking off...\n\n");
 
     gst_init(&argc, &argv);
+
+    gst_version(&major, &minor, &micro, &nano);
+    printf("Gstreamer version %d.%d.%d.%d\n", major, minor, micro, nano);
+    if (major != 1 || minor < 6) {
+        printf("This application needs at least gstreamer version 1.6.3 to work reliably.\n");
+        return -1;
+    }
 
     appsink_pipeline(argv[1]);
 
@@ -108,8 +117,8 @@ void appsink_pipeline(const char* filelocation) {
     sprintf(pipeline_string, "filesrc location=%s ! qtdemux name=demux demux.video_0 ! queue ! appsink name=mysink sync=true", filelocation);
     sprintf(pipeline2_string, "appsrc name=mysource ! queue ! avdec_h264 name=mydec ! videoconvert ! ximagesink");
 
-    printf("\n\nGST pipeline 1: %s\n\n", pipeline_string);
-    printf("\n\nGST pipeline 2: %s\n\n", pipeline2_string);
+    printf("\nGST pipeline 1: %s\n", pipeline_string);
+    printf("\nGST pipeline 2: %s\n\n", pipeline2_string);
 
     //configuring pipeline 2
     pipeline2 = gst_parse_launch(pipeline2_string, &error);
