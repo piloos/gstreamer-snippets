@@ -59,7 +59,7 @@ GstFlowReturn new_video_sample_callback(GstAppSink *appsink, gpointer user_data)
     //black.  A different color from black is enough to see it as white.
     isWhite = ( map.data[0] != 0 ||  map.data[1] != 0 && map.data[2] != 0 ) ? TRUE : FALSE;
     if(isWhite == TRUE) {
-        printf("AV7 video ");
+        printf("AV Measurement 7 - video ");
         printf("%ld ", GST_TIME_AS_MSECONDS(buffer->pts));
         printf("white\n");
     }
@@ -128,7 +128,7 @@ GstFlowReturn new_audio_sample_callback(GstAppSink *appsink, gpointer user_data)
         hasSound = TRUE;
     }
     if(hasSound == TRUE) {
-        printf("AV7 audio ");
+        printf("AV Measurement 7 - audio ");
         printf("%ld ", GST_TIME_AS_MSECONDS(buffer->pts));
         printf("%d ", absoluteSoundStart);
         printf("noise\n");
