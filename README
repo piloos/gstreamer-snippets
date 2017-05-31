@@ -7,6 +7,9 @@ This repo contains a few gstreamer test snippets:
    * usage: appsink_localsource.o <file> <output pixel format> <use videoconvert?: choose yes/no>
    * note that when not using videoconvert, the pixel format needs to be the pixel format of the original file
 
+* appsink_localsource_audio.c: play a file to appsink and get info about the audio frames
+   * currently only working for AAC audio
+
 * marker.c: detects audio and video pulses in a test file
 
 * appsink_to_appsrc.c: Sinks video from a mp4 file to an appsink.  This is pushed to an appsrc and rendered.
