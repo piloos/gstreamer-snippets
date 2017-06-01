@@ -153,7 +153,7 @@ void appsink_pipeline(const char* filelocation) {
      *
      */
 
-    sprintf(pipeline_string, "filesrc location=%s ! qtdemux name=demux demux.audio_0 ! faad name=mydec ! appsink name=mysink sync=false", filelocation);
+    sprintf(pipeline_string, "filesrc location=%s ! qtdemux name=demux demux.audio_0 ! avdec_aac name=mydec ! appsink name=mysink sync=false", filelocation);
 
     printf("\nGST pipeline 1: %s\n", pipeline_string);
 
