@@ -123,14 +123,32 @@ static gboolean print_appsrc_level(gpointer data)
     return TRUE;
 }
 
+static gboolean print_queue_level(gpointer data)
+{
+    guint64 bytes;
+    gchar *name;
+    GstElement *queue = (GstElement*) data;
+    g_object_get( G_OBJECT(queue), "current-level-bytes", &bytes, NULL);
+    name = gst_element_get_name(queue);
+    printf("Queue %s is containing %d bytes\n", name, bytes);
+    g_free(name);
+    return TRUE;
+}
+
 static void enough_data_cb(GstElement *el, gpointer data)
 {
     printf("Appsrc is signaling that it has enough data!\n");
 }
 
+static void buffer_passing_cb(GstElement *el, GstBuffer *buffer, gpointer data)
+{
+    //printf("Identity: buffer passing!\n");
+    buffer->pts += 1000000000;
+}
+
 void appsink_pipeline(const char* filelocation) {
     char pipeline_string[500], pipeline2_string[500];
-    GstElement *pipeline, *appsink, *pipeline2, *appsrc, *el;
+    GstElement *pipeline, *appsink, *pipeline2, *appsrc, *el, *queue_before, *queue_after, *myid;
     GError *error = NULL;
     GstAppSinkCallbacks my_callbacks;
     GstPad *pad;
@@ -148,19 +166,44 @@ void appsink_pipeline(const char* filelocation) {
      * +---------+       +-------+       +-------+       +------------+
      *
      *
-     * +--------+       +-------+       +---------+       +-----------+       +------------+
-     * |        |       |       |       |         |       |           |       |            |
-     * | appsrc +-------> queue +-------> decoder +-------> converter +-------> ximagesink |
-     * |        |       |       |       |         |       |           |       |            |
-     * +--------+       +-------+       +---------+       +-----------+       +------------+
+     * +--------+       +-------+       +---------+       +-----------+       +-----+       +-------+       +------------+
+     * |        |       |       |       |         |       |           |       |     |       |       |       |            |
+     * | appsrc +-------> queue +-------> decoder +-------> converter +-------> tee +-------> queue +-------> ximagesink |
+     * |        |       | 10MB  |       |         |       |           |       |     |       | 20MB  |       |            |
+     * +--------+       +-------+       +---------+       +-----------+       +--+--+       +-------+       +------------+
+     *                                                                           |
+     *                                                                           |       +----------+       +-------+       +------------+
+     *                                                                           |       |          |       |       |       |            |
+     *                                                                           +-------> identity +-------> queue +-------> ximagesink |
+     *                                                                                   | PTS + 1s |       | 110MB |       |            |
+     *                                                                                   +----------+       +-------+       +------------+
      *
      * Appsrc is set non-blocking.  This holds the danger of filling its internal queue dangerously large.
      * The max-bytes property (set to 0) is only used to emit the signal 'enough-data'. We don't need that signal.
      * So we might as well disable it.
+     *
+     * How this pipeline works:
+     * A file (eg. Madagascar.mp4) is demuxed and only the video is retained.  This video is pushed via appsink to appsrc.  The pushing
+     * will happen as fast as the system can because 'sync' is set to false on appsink.
+     * Appsrc is receiving the data and pushing it to the first queue.  Appsrc needs to store all data which it cannot push yet.  Note that a
+     * movie like Madagascar.mp4 contains about 30MB of encoded video data.  After the first queue, the frame is decoded and converted.
+     * Then the frame is duplicated via a tee.  The first leg of the tee contains a queue and and ximagesink.  Ximagesink will play
+     * the frame according to its PTS.  The second leg of the tee contains an identity element which adds 1 second to the PTS.  It also
+     * contains a 110MB queue and again an ximagesink.  Note that the queue of the second leg needs to be able to hold at least 1 second of data,
+     * which in case of Madagscar.mp4 is 88.4MB (720x1028 x 4B/pxl x 24fps).  Otherwise, it will block the tee and prevent continuous flow in the
+     * first leg.
+     * When taking a snapshot of the queue levels during playback of Madagascar.mp4, you should see the following levels:
+     *  - internal queue of appsrc: all the leftover data which could not be pushed yet
+     *  - queue after appsrc: 10MB, ie. completely full. This queue has no reason to empty unless appsrc has no data anymore.
+     *  - queue of first tee leg: 20MB, ie. completely full.  This queue is completely full if the decoder/converter can work faster than the playback.
+     *  - queue of second tee leg: 108MB, ie. 20MB + 1 second of data which cannot be played yet.
      */
 
     sprintf(pipeline_string, "filesrc location=%s ! qtdemux name=demux demux.video_0 ! queue ! appsink name=mysink sync=false", filelocation);
-    sprintf(pipeline2_string, "appsrc name=mysource block=false max-bytes=0 ! queue ! avdec_h264 name=mydec ! videoconvert ! ximagesink");
+    sprintf(pipeline2_string, "appsrc name=mysource block=false max-bytes=0 ! queue name=qbefore max-size-buffers=0 max-size-time=0 max-size-bytes=10000000"
+                              " ! avdec_h264 name=mydec ! videoconvert "
+                              " ! tee name=t ! queue name=qafter max-size-buffers=0 max-size-time=0 max-size-bytes=20000000 ! ximagesink"
+                              " t. ! identity name=myid ! queue name=qafter2 max-size-buffers=0 max-size-time=0 max-size-bytes=110000000 ! ximagesink");
 
     printf("\nGST pipeline 1: %s\n", pipeline_string);
     printf("\nGST pipeline 2: %s\n\n", pipeline2_string);
@@ -177,6 +220,10 @@ void appsink_pipeline(const char* filelocation) {
     appsrc = gst_bin_get_by_name(GST_BIN(pipeline2), "mysource");
 
     g_signal_connect(G_OBJECT(appsrc), "enough-data", G_CALLBACK(enough_data_cb), NULL);
+
+    myid = gst_bin_get_by_name(GST_BIN(pipeline2), "myid");
+    g_signal_connect(G_OBJECT(myid), "handoff", G_CALLBACK(buffer_passing_cb), NULL);
+    gst_object_unref(myid);
 
     //configuring pipeline 1
     pipeline = gst_parse_launch(pipeline_string, &error);
@@ -213,10 +260,17 @@ void appsink_pipeline(const char* filelocation) {
 
     g_timeout_add (500, print_appsrc_level, (gpointer) appsrc);
 
+    queue_before = gst_bin_get_by_name(GST_BIN(pipeline2), "qbefore");
+    g_timeout_add (500, print_queue_level, (gpointer) queue_before);
+    queue_after = gst_bin_get_by_name(GST_BIN(pipeline2), "qafter");
+    g_timeout_add (500, print_queue_level, (gpointer) queue_after);
+
     g_main_loop_run (loop);
 
     gst_element_set_state(pipeline, GST_STATE_NULL);
     gst_element_set_state(pipeline2, GST_STATE_NULL);
+    gst_object_unref(queue_before);
+    gst_object_unref(queue_after);
     gst_object_unref(appsink);
     gst_object_unref(appsrc);
     gst_object_unref(pipeline);
