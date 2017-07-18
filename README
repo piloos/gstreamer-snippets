@@ -19,6 +19,8 @@ This repo contains a few gstreamer test snippets:
 
 * appsink_to_appsrc_extended.c: Extension of appsink_to_appsrc to play around with queues, tees and change buffer PTSes.
 
+* clock_skew.c: Extension of basic_pipeline.c with the possiblity to make the clock slower/faster.
+
 
 In order to build locally:
 
