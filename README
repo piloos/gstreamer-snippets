@@ -21,6 +21,7 @@ This repo contains a few gstreamer test snippets:
 
 * clock_skew.c: Extension of basic_pipeline.c with the possiblity to make the clock slower/faster.
 
+* appsink_to_appsrc_audio.c: Sinks audio from a mp4 file to an appsink.  This is pushed to an appsrc and played to PulseAudio
 
 In order to build locally:
 
